@@ -1,3 +1,4 @@
+from io import BytesIO
 from flask import Flask, request
 from balethon import Client
 from dotenv import load_dotenv
@@ -7,16 +8,12 @@ import requests
 load_dotenv(".env")
 
 app = Flask(__name__)
-
 bot = Client(os.getenv("BALE_TOKEN"))
 
 RUBIKA_CHAT_ID = os.getenv("RUBIKA_CHAT_ID")
 EITAA_CHANNEL = os.getenv("EITAA_CHANNEL")
 RUBIKA_TOKEN = os.getenv("RUBIKA_TOKEN")
 EITAA_TOKEN = os.getenv("EITAA_TOKEN")
-
-DOWNLOAD_DIR = "downloads"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 
 @app.post("/webhook")
@@ -25,7 +22,6 @@ def webhook():
     Webhook endpoint to receive updates from Bale.
     Forwards text messages and attached files to Rubika & Eitaa.
     """
-
     update = request.json
     message = bot.parse_update(update)
 
@@ -33,56 +29,48 @@ def webhook():
         return {"ok": True}
 
     text_to_forward = message.text or ""
-
     files_to_send = []
 
     if message.photo:
         for photo in message.photo:
-            file_path = bot.download_file_sync(photo.file_id, DOWNLOAD_DIR)
-            files_to_send.append(file_path)
+            file_bytes = bot.download_file(photo.file_id)
+            files_to_send.append(("photo.jpg", BytesIO(file_bytes)))
 
     if message.document:
-        file_path = bot.download_file_sync(message.document.file_id, DOWNLOAD_DIR)
-        files_to_send.append(file_path)
+        file_bytes = bot.download_file(message.document.file_id)
+        files_to_send.append((message.document.file_name, BytesIO(file_bytes)))
 
     if message.video:
-        file_path = bot.download_file_sync(message.video.file_id, DOWNLOAD_DIR)
-        files_to_send.append(file_path)
+        file_bytes = bot.download_file(message.video.file_id)
+        files_to_send.append(("video.mp4", BytesIO(file_bytes)))
 
     if message.voice:
-        file_path = bot.download_file_sync(message.voice.file_id, DOWNLOAD_DIR)
-        files_to_send.append(file_path)
+        file_bytes = bot.download_file(message.voice.file_id)
+        files_to_send.append(("voice.ogg", BytesIO(file_bytes)))
 
     if message.sticker:
-        file_path = bot.download_file_sync(message.sticker.file_id, DOWNLOAD_DIR)
-        files_to_send.append(file_path)
+        file_bytes = bot.download_file(message.sticker.file_id)
+        files_to_send.append(("sticker.webp", BytesIO(file_bytes)))
 
-    for fpath in files_to_send:
-        with open(fpath, "rb") as f:
-            requests.post(
-                f"https://botapi.rubika.ir/v3/{RUBIKA_TOKEN}/sendFile",
-                files={"file": f},
-                data={"chat_id": RUBIKA_CHAT_ID, "caption": text_to_forward}
-            )
-        os.remove(fpath)
+    for filename, file_stream in files_to_send:
+        requests.post(
+            f"https://botapi.rubika.ir/v3/{RUBIKA_TOKEN}/sendFile",
+            files={"file": (filename, file_stream)},
+            data={"chat_id": RUBIKA_CHAT_ID, "caption": text_to_forward}
+        )
+
+    for filename, file_stream in files_to_send:
+        requests.post(
+            f"https://eitaayar.ir/api/{EITAA_TOKEN}/sendFile",
+            files={"file": (filename, file_stream)},
+            data={"chat_id": EITAA_CHANNEL, "caption": text_to_forward}
+        )
 
     if text_to_forward and not files_to_send:
         requests.post(
             f"https://botapi.rubika.ir/v3/{RUBIKA_TOKEN}/sendMessage",
             json={"chat_id": RUBIKA_CHAT_ID, "text": text_to_forward}
         )
-
-    for fpath in files_to_send:
-        with open(fpath, "rb") as f:
-            requests.post(
-                f"https://eitaayar.ir/api/{EITAA_TOKEN}/sendFile",
-                files={"file": f},
-                data={"chat_id": EITAA_CHANNEL, "caption": text_to_forward}
-            )
-        if os.path.exists(fpath):
-            os.remove(fpath)
-
-    if text_to_forward and not files_to_send:
         requests.get(
             f"https://eitaayar.ir/api/{EITAA_TOKEN}/sendMessage?chat_id={EITAA_CHANNEL}&text={text_to_forward}&date=0&pin=off"
         )
