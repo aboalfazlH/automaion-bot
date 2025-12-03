@@ -31,7 +31,6 @@ def webhook():
     text_to_forward = message.get("text", "")
     files_to_send = []
 
-    # Handle photo
     if "photo" in message:
         for photo in message["photo"]:
             file_bytes = bot.download_file(photo["file_id"])
