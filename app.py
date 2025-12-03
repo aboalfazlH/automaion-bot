@@ -16,7 +16,7 @@ RUBIKA_TOKEN = os.getenv("RUBIKA_TOKEN")
 EITAA_TOKEN = os.getenv("EITAA_TOKEN")
 
 
-@app.post("/webhook")
+@app.post("/webhook/")
 def webhook():
     """
     Webhook endpoint to receive updates from Bale.
