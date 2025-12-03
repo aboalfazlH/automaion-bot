@@ -23,33 +23,38 @@ def webhook():
     Forwards text messages and attached files to Rubika & Eitaa.
     """
     update = request.json
-    message = bot.parse_update(update)
+    message = update.get("message")
 
     if not message:
         return {"ok": True}
 
-    text_to_forward = message.text or ""
+    text_to_forward = message.get("text", "")
     files_to_send = []
 
-    if message.photo:
-        for photo in message.photo:
-            file_bytes = bot.download_file(photo.file_id)
+    # Handle photo
+    if "photo" in message:
+        for photo in message["photo"]:
+            file_bytes = bot.download_file(photo["file_id"])
             files_to_send.append(("photo.jpg", BytesIO(file_bytes)))
 
-    if message.document:
-        file_bytes = bot.download_file(message.document.file_id)
-        files_to_send.append((message.document.file_name, BytesIO(file_bytes)))
+    if "document" in message:
+        doc = message["document"]
+        file_bytes = bot.download_file(doc["file_id"])
+        files_to_send.append((doc.get("file_name", "document"), BytesIO(file_bytes)))
 
-    if message.video:
-        file_bytes = bot.download_file(message.video.file_id)
+    if "video" in message:
+        video = message["video"]
+        file_bytes = bot.download_file(video["file_id"])
         files_to_send.append(("video.mp4", BytesIO(file_bytes)))
 
-    if message.voice:
-        file_bytes = bot.download_file(message.voice.file_id)
+    if "voice" in message:
+        voice = message["voice"]
+        file_bytes = bot.download_file(voice["file_id"])
         files_to_send.append(("voice.ogg", BytesIO(file_bytes)))
 
-    if message.sticker:
-        file_bytes = bot.download_file(message.sticker.file_id)
+    if "sticker" in message:
+        sticker = message["sticker"]
+        file_bytes = bot.download_file(sticker["file_id"])
         files_to_send.append(("sticker.webp", BytesIO(file_bytes)))
 
     for filename, file_stream in files_to_send:
